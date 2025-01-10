@@ -57,13 +57,13 @@ impl ApplicationHandler for App {
                 window.request_redraw();
             },
             WindowEvent::RedrawRequested => {
-                if let Some(wgpu_state) = &mut self.render_state {
+                if let Some(render_state) = &mut self.render_state {
                     if self.holding_mouse_left {
-                        wgpu_state.paint(self.cursor_position, self.last_cursor_position);
+                        render_state.canvas.paint(self.cursor_position, self.last_cursor_position);
                     } else if self.holding_mouse_right {
-                        wgpu_state.erase(self.cursor_position, self.last_cursor_position);
+                        render_state.canvas.erase(self.cursor_position, self.last_cursor_position);
                     }
-                    match wgpu_state.render() {
+                    match render_state.render() {
                         Ok(_) => {},
                         Err(e) => error!("Error rendering frame: {:?}", e),
                     }
