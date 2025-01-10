@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use rustbrush_utils::{Brush, operations::PaintOperation};
 use tracing::error;
 use winit::window::Window;
@@ -43,14 +45,13 @@ impl Canvas {
     }
 }
 
-pub struct RenderState<'window> {
-    pixels: Pixels<'window>,
-    _window: &'window Window,
+pub struct RenderState {
+    pub pixels: Pixels<'static>,
     pub canvas: Canvas,
 }
 
-impl<'window> RenderState<'window> {
-    pub async fn new(window: &'window Window, width: u32, height: u32) -> Self {
+impl RenderState {
+    pub fn new(window: Arc<Window>, width: u32, height: u32) -> Self {
         let surface_size = window.inner_size();
         let surface_texture = SurfaceTexture::new(surface_size.width, surface_size.height, window);
 
@@ -68,7 +69,6 @@ impl<'window> RenderState<'window> {
 
         Self {
             pixels,
-            _window: window,
             canvas: Canvas {
                 layers: vec![layer1, layer2],
                 width,

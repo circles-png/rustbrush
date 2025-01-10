@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use tracing::error;
 use winit::{
     application::ApplicationHandler,
@@ -9,8 +11,8 @@ use crate::render::state::RenderState;
 
 #[derive(Default)]
 pub struct App {
-    window: Option<Window>,
-    render_state: Option<RenderState<'static>>,
+    window: Option<Arc<Window>>,
+    render_state: Option<RenderState>,
     cursor_position: (f32, f32),
     last_cursor_position: (f32, f32),
     holding_mouse_left: bool,
@@ -24,37 +26,26 @@ impl ApplicationHandler for App {
                 .with_title("Brushy")
         ).expect("Failed to create window");
 
-        // Initialize WGPU
-        // SAFETY: We ensure the Window outlives the Surface by keeping them together
-        let wgpu_state = unsafe {
-            let window_ref: &'static Window = std::mem::transmute(&window);
-            pollster::block_on(RenderState::new(window_ref, 800, 600))
-        };
+        let window = Arc::new(window);
+        self.window = Some(window.clone());
 
-        self.render_state = Some(wgpu_state);
-        self.window = Some(window);
+        self.render_state = Some(RenderState::new(window, 800, 600));
     }
 
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
-        window_id: WindowId,
+        _window_id: WindowId,
         event: WindowEvent,
     ) {
-        let window = match &self.window {
-            Some(w) if w.id() == window_id => w,
-            _ => return,
-        };
-
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             },
             WindowEvent::Resized(new_size) => {
-                if let Some(wgpu_state) = &mut self.render_state {
-                    wgpu_state.resize_surface(new_size.width, new_size.height);
+                if let Some(render_state) = &mut self.render_state {
+                    render_state.resize_surface(new_size.width, new_size.height);
                 }
-                window.request_redraw();
             },
             WindowEvent::RedrawRequested => {
                 if let Some(render_state) = &mut self.render_state {
@@ -68,8 +59,10 @@ impl ApplicationHandler for App {
                         Err(e) => error!("Error rendering frame: {:?}", e),
                     }
                 }
-                window.request_redraw();
                 self.last_cursor_position = self.cursor_position;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
             },
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor_position = (position.x as f32, position.y as f32);
@@ -91,12 +84,10 @@ impl ApplicationHandler for App {
                         }
                     },
                 }
-                window.request_redraw();
             },
             WindowEvent::KeyboardInput {
                 ..
             } => {
-                window.request_redraw();
             },
             _ => {},
         }
