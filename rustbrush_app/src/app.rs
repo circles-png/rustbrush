@@ -38,18 +38,20 @@ impl ApplicationHandler for App<'_> {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        let window = match &self.window {
-            Some(w) if w.id() == window_id => w,
-            _ => return,
+        let Some(window) = self
+            .window
+            .as_mut()
+            .filter(|window| window.id() == window_id)
+        else {
+            return;
         };
-
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
             WindowEvent::Resized(new_size) => {
-                if let Some(wgpu_state) = &mut self.render_state {
-                    wgpu_state.resize_surface(new_size.width, new_size.height);
+                if let Some(render_state) = &mut self.render_state {
+                    render_state.resize_surface(new_size.width, new_size.height);
                 }
                 window.request_redraw();
             }
