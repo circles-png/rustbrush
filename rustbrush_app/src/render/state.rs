@@ -1,7 +1,9 @@
-use rustbrush_utils::{Brush, operations::PaintOperation};
+use std::sync::Arc;
+
+use pixels::{Pixels, SurfaceTexture};
+use rustbrush_utils::{operations::PaintOperation, Brush};
 use tracing::error;
 use winit::window::Window;
-use pixels::{Pixels, SurfaceTexture};
 
 pub struct Canvas {
     layers: Vec<Vec<u8>>,
@@ -24,7 +26,7 @@ impl Canvas {
             last_cursor_position,
             is_eraser: false,
         }
-            .process();
+        .process();
     }
 
     pub fn erase(&mut self, cursor_position: (f32, f32), last_cursor_position: (f32, f32)) {
@@ -39,18 +41,17 @@ impl Canvas {
             last_cursor_position,
             is_eraser: true,
         }
-            .process();
+        .process();
     }
 }
 
 pub struct RenderState<'window> {
     pixels: Pixels<'window>,
-    _window: &'window Window,
     pub canvas: Canvas,
 }
 
-impl<'window> RenderState<'window> {
-    pub async fn new(window: &'window Window, width: u32, height: u32) -> Self {
+impl RenderState<'_> {
+    pub fn new(window: Arc<Window>, width: u32, height: u32) -> Self {
         let surface_size = window.inner_size();
         let surface_texture = SurfaceTexture::new(surface_size.width, surface_size.height, window);
 
@@ -59,28 +60,22 @@ impl<'window> RenderState<'window> {
         let layer1 = vec![0u8; layer_size];
         let layer2 = vec![0u8; layer_size];
 
-        let pixels = Pixels::new(
-            width,
-            height,
-            surface_texture,
-        )
+        let pixels = Pixels::new(width, height, surface_texture)
             .expect("Failed to create pixels. Cannot continue.");
 
         Self {
             pixels,
-            _window: window,
             canvas: Canvas {
                 layers: vec![layer1, layer2],
                 width,
                 height,
                 current_layer: 0,
                 dirty: true,
-            }
+            },
         }
     }
 
     pub fn render(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-
         if !self.canvas.dirty {
             return Ok(());
         }
@@ -94,29 +89,33 @@ impl<'window> RenderState<'window> {
         for layer in &self.canvas.layers {
             for (i, chunk) in frame.chunks_mut(4).enumerate() {
                 let layer_pixel = &layer[i * 4..(i + 1) * 4];
-                
-                let alpha = layer_pixel[3] as f32 / 255.0;
+
+                let alpha = f32::from(layer_pixel[3]) / 255.0;
                 for c in 0..3 {
-                    let existing = chunk[c] as f32 / 255.0;
-                    let new = layer_pixel[c] as f32 / 255.0;
-                    chunk[c] = ((new * alpha + existing * (1.0 - alpha)) * 255.0) as u8;
+                    let existing = f32::from(chunk[c]) / 255.0;
+                    let new = f32::from(layer_pixel[c]) / 255.0;
+                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                    {
+                        chunk[c] = (new.mul_add(alpha, existing * (1.0 - alpha)) * 255.0) as u8;
+                    }
                 }
-                
-                let existing_alpha = chunk[3] as f32 / 255.0;
+
+                let existing_alpha = f32::from(chunk[3]) / 255.0;
                 let new_alpha = alpha;
-                chunk[3] = ((new_alpha + existing_alpha * (1.0 - new_alpha)) * 255.0) as u8;
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                {
+                    chunk[3] = (existing_alpha.mul_add(1.0 - new_alpha, new_alpha) * 255.0) as u8;
+                }
             }
         }
-        
+
         self.pixels.render()?;
         Ok(())
     }
 
     pub fn resize_surface(&mut self, width: u32, height: u32) {
-        if width > 0 && height > 0 {
-            if let Err(e) = self.pixels.resize_surface(width, height) {
-                error!("Failed to resize surface: {:?}", e);
-            }
+        if let Err(e) = self.pixels.resize_surface(width, height) {
+            error!("Failed to resize surface: {:?}", e);
         }
     }
 }

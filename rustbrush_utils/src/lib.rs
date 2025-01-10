@@ -1,3 +1,5 @@
+#![warn(clippy::pedantic, clippy::nursery)]
+
 pub mod operations;
 
 /// A pixel is a single point in a pixel buffer with an RGBA color value.
@@ -20,7 +22,7 @@ pub struct BrushBaseSettings {
 }
 
 pub enum Brush {
-    SoftCircle { 
+    SoftCircle {
         hardness: f32,
         base: BrushBaseSettings,
     },
@@ -28,7 +30,7 @@ pub enum Brush {
 
 impl Default for Brush {
     fn default() -> Self {
-        Brush::SoftCircle {
+        Self::SoftCircle {
             hardness: 0.1,
             base: BrushBaseSettings {
                 id: "soft-circle".to_string(),
@@ -42,9 +44,10 @@ impl Default for Brush {
 
 impl Brush {
     /// Gets a stamp for the current brush settings
+    #[must_use]
     pub fn compute_stamp(&self, color: [u8; 3]) -> Stamp {
         match self {
-            Brush::SoftCircle { hardness, base } => {
+            Self::SoftCircle { hardness, base } => {
                 soft_circle(base.radius, *hardness, base.opacity, color)
             }
         }
@@ -54,21 +57,24 @@ impl Brush {
     // accessor methods
     //==========================================================================
 
-    pub fn spacing(&self) -> f32 {
+    #[must_use]
+    pub const fn spacing(&self) -> f32 {
         match self {
-            Brush::SoftCircle { base, .. } => base.spacing,
+            Self::SoftCircle { base, .. } => base.spacing,
         }
     }
 
-    pub fn radius(&self) -> f32 {
+    #[must_use]
+    pub const fn radius(&self) -> f32 {
         match self {
-            Brush::SoftCircle { base, .. } => base.radius,
+            Self::SoftCircle { base, .. } => base.radius,
         }
     }
 
-    pub fn opacity(&self) -> f32 {
+    #[must_use]
+    pub const fn opacity(&self) -> f32 {
         match self {
-            Brush::SoftCircle { base, .. } => base.opacity,
+            Self::SoftCircle { base, .. } => base.opacity,
         }
     }
 
@@ -76,40 +82,44 @@ impl Brush {
     // builder methods
     //==========================================================================
 
+    #[must_use]
     pub fn with_spacing(self, spacing: f32) -> Self {
         match self {
-            Brush::SoftCircle { hardness, mut base } => {
+            Self::SoftCircle { hardness, mut base } => {
                 base.spacing = spacing;
-                Brush::SoftCircle { hardness, base }
+                Self::SoftCircle { hardness, base }
             }
         }
     }
 
+    #[must_use]
     pub fn with_radius(self, radius: f32) -> Self {
         match self {
-            Brush::SoftCircle { hardness, mut base } => {
+            Self::SoftCircle { hardness, mut base } => {
                 base.radius = radius;
-                Brush::SoftCircle { hardness, base }
+                Self::SoftCircle { hardness, base }
             }
         }
     }
 
+    #[must_use]
     pub fn with_opacity(self, opacity: f32) -> Self {
         match self {
-            Brush::SoftCircle { hardness, mut base } => {
+            Self::SoftCircle { hardness, mut base } => {
                 base.opacity = opacity;
-                Brush::SoftCircle { hardness, base }
+                Self::SoftCircle { hardness, base }
             }
         }
     }
 }
 
-/// Generates a soft circle brush stamp which you can use to merge in with a pixel buffer. 
+/// Generates a soft circle brush stamp which you can use to merge in with a pixel buffer.
 /// Generally you wouldn't call this directly and instead would use `PaintOperation::process`.
+#[must_use]
 pub fn soft_circle(radius: f32, hardness: f32, opacity: f32, color: [u8; 3]) -> Stamp {
     let mut pixels = Vec::new();
     let radius_int = radius.ceil() as i32;
-    
+
     for y in -radius_int..=radius_int {
         for x in -radius_int..=radius_int {
             let distance = ((x * x + y * y) as f32).sqrt();
@@ -119,9 +129,9 @@ pub fn soft_circle(radius: f32, hardness: f32, opacity: f32, color: [u8; 3]) -> 
                     1.0
                 } else {
                     let t = (normalized_dist - hardness) / (1.0 - hardness);
-                    (1.0 - t * t * (3.0 - 2.0 * t)).max(0.0)
+                    (t * t).mul_add(-2.0f32.mul_add(-t, 3.0), 1.0).max(0.0)
                 };
-                
+
                 let alpha = (alpha * opacity * 255.0) as u8;
                 pixels.push(Pixel {
                     x,
@@ -131,6 +141,6 @@ pub fn soft_circle(radius: f32, hardness: f32, opacity: f32, color: [u8; 3]) -> 
             }
         }
     }
-    
+
     Stamp { pixels }
 }

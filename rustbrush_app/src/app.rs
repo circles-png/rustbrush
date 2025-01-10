@@ -1,37 +1,34 @@
+#![warn(clippy::pedantic, clippy::nursery)]
+
+use crate::render::state::RenderState;
+use std::sync::Arc;
 use tracing::error;
 use winit::{
     application::ApplicationHandler,
-    event::WindowEvent,
+    event::{ElementState, MouseButton, WindowEvent},
     event_loop::ActiveEventLoop,
     window::{Window, WindowId},
 };
-use crate::render::state::RenderState;
 
 #[derive(Default)]
-pub struct App {
-    window: Option<Window>,
-    render_state: Option<RenderState<'static>>,
+pub struct App<'window> {
+    render_state: Option<RenderState<'window>>,
+    window: Option<Arc<Window>>,
     cursor_position: (f32, f32),
     last_cursor_position: (f32, f32),
     holding_mouse_left: bool,
     holding_mouse_right: bool,
 }
 
-impl ApplicationHandler for App {
+impl ApplicationHandler for App<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let window = event_loop.create_window(
-            Window::default_attributes()
-                .with_title("Brushy")
-        ).expect("Failed to create window");
+        let window = Arc::new(
+            event_loop
+                .create_window(Window::default_attributes().with_title("Brushy"))
+                .expect("Failed to create window"),
+        );
 
-        // Initialize WGPU
-        // SAFETY: We ensure the Window outlives the Surface by keeping them together
-        let wgpu_state = unsafe {
-            let window_ref: &'static Window = std::mem::transmute(&window);
-            pollster::block_on(RenderState::new(window_ref, 800, 600))
-        };
-
-        self.render_state = Some(wgpu_state);
+        self.render_state = Some(RenderState::new(Arc::clone(&window), 800, 600));
         self.window = Some(window);
     }
 
@@ -49,56 +46,57 @@ impl ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
-            },
+            }
             WindowEvent::Resized(new_size) => {
                 if let Some(wgpu_state) = &mut self.render_state {
                     wgpu_state.resize_surface(new_size.width, new_size.height);
                 }
                 window.request_redraw();
-            },
+            }
             WindowEvent::RedrawRequested => {
                 if let Some(render_state) = &mut self.render_state {
                     if self.holding_mouse_left {
-                        render_state.canvas.paint(self.cursor_position, self.last_cursor_position);
+                        render_state
+                            .canvas
+                            .paint(self.cursor_position, self.last_cursor_position);
                     } else if self.holding_mouse_right {
-                        render_state.canvas.erase(self.cursor_position, self.last_cursor_position);
+                        render_state
+                            .canvas
+                            .erase(self.cursor_position, self.last_cursor_position);
                     }
-                    match render_state.render() {
-                        Ok(_) => {},
-                        Err(e) => error!("Error rendering frame: {:?}", e),
+                    if let Err(e) = render_state.render() {
+                        error!("Error rendering frame: {:?}", e);
                     }
                 }
                 window.request_redraw();
                 self.last_cursor_position = self.cursor_position;
-            },
+            }
             WindowEvent::CursorMoved { position, .. } => {
-                self.cursor_position = (position.x as f32, position.y as f32);
-            },
-            WindowEvent::MouseInput { state, button, .. } => {
-                match state {
-                    winit::event::ElementState::Pressed => {
-                        if button == winit::event::MouseButton::Left {
-                            self.holding_mouse_left = true;
-                        } else if button == winit::event::MouseButton::Right {
-                            self.holding_mouse_right = true;
-                        }
-                    },
-                    winit::event::ElementState::Released => {
-                        if button == winit::event::MouseButton::Left {
-                            self.holding_mouse_left = false;
-                        } else if button == winit::event::MouseButton::Right {
-                            self.holding_mouse_right = false;
-                        }
-                    },
+                #[allow(clippy::cast_possible_truncation)]
+                {
+                    self.cursor_position = (position.x as f32, position.y as f32);
                 }
+            }
+            WindowEvent::MouseInput { state, button, .. } => {
+                let new_state = match state {
+                    ElementState::Pressed => true,
+                    ElementState::Released => false,
+                };
+                let holding_state = match button {
+                    MouseButton::Left => Some(&mut self.holding_mouse_left),
+                    MouseButton::Right => Some(&mut self.holding_mouse_right),
+                    _ => None,
+                };
+                if let Some(holding_state) = holding_state {
+                    *holding_state = new_state;
+                }
+
                 window.request_redraw();
-            },
-            WindowEvent::KeyboardInput {
-                ..
-            } => {
+            }
+            WindowEvent::KeyboardInput { .. } => {
                 window.request_redraw();
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
 }
