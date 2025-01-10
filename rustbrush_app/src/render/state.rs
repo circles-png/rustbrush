@@ -80,7 +80,7 @@ impl<'window> RenderState<'window> {
         self.dirty = false;
 
         let frame = self.pixels.frame_mut();
-        frame.fill(0); // Clears the frame
+        frame.fill(0); // clears the frame
 
         // merge layers into the frame
         for layer in &self.layers {

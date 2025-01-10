@@ -1,11 +1,13 @@
 pub mod operations;
 
+/// A pixel is a single point in a pixel buffer with an RGBA color value.
 pub struct Pixel {
     pub x: i32,
     pub y: i32,
     pub color: [u8; 4],
 }
 
+/// A stamp is a collection of pixels that represent a brush shape.
 pub struct Stamp {
     pub pixels: Vec<Pixel>,
 }
@@ -13,7 +15,7 @@ pub struct Stamp {
 pub struct BrushBaseSettings {
     pub id: String,
     pub radius: f32,
-    pub flow: f32,
+    pub spacing: f32,
     pub opacity: f32,
 }
 
@@ -27,11 +29,11 @@ pub enum Brush {
 impl Default for Brush {
     fn default() -> Self {
         Brush::SoftCircle {
-            hardness: 0.5,
+            hardness: 0.1,
             base: BrushBaseSettings {
                 id: "soft-circle".to_string(),
                 radius: 10.0,
-                flow: 1.0,
+                spacing: 0.1,
                 opacity: 1.0,
             },
         }
@@ -52,9 +54,9 @@ impl Brush {
     // accessor methods
     //==========================================================================
 
-    pub fn flow(&self) -> f32 {
+    pub fn spacing(&self) -> f32 {
         match self {
-            Brush::SoftCircle { base, .. } => base.flow,
+            Brush::SoftCircle { base, .. } => base.spacing,
         }
     }
 
@@ -74,10 +76,10 @@ impl Brush {
     // builder methods
     //==========================================================================
 
-    pub fn with_flow(self, flow: f32) -> Self {
+    pub fn with_spacing(self, spacing: f32) -> Self {
         match self {
             Brush::SoftCircle { hardness, mut base } => {
-                base.flow = flow;
+                base.spacing = spacing;
                 Brush::SoftCircle { hardness, base }
             }
         }
@@ -121,13 +123,11 @@ pub fn soft_circle(radius: f32, hardness: f32, opacity: f32, color: [u8; 3]) -> 
                 };
                 
                 let alpha = (alpha * opacity * 255.0) as u8;
-                if alpha > 0 {
-                    pixels.push(Pixel {
-                        x,
-                        y,
-                        color: [color[0], color[1], color[2], alpha],
-                    });
-                }
+                pixels.push(Pixel {
+                    x,
+                    y,
+                    color: [color[0], color[1], color[2], alpha],
+                });
             }
         }
     }

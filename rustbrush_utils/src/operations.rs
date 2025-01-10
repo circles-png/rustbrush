@@ -41,7 +41,9 @@ impl PaintOperation<'_> {
         let dy = y1 - y0;
         let distance = ((dx * dx + dy * dy) as f32).sqrt();
         
-        let steps = (distance * self.brush.flow()).max(1.0) as i32;
+        let min_spacing = self.brush.radius() * self.brush.spacing();
+        let steps = (distance / min_spacing).max(1.0) as i32;
+        
         let stamp = self.brush.compute_stamp(self.color);
         
         for i in 0..=steps {
