@@ -60,7 +60,7 @@ impl<'window> RenderState<'window> {
         self.dirty = true;
         PaintOperation {
             pixel_buffer: &mut self.layers[self.current_layer],
-            brush: &Brush::default(),
+            brush: &Brush::default().with_opacity(0.15),
             color: [0, 0, 0], // doesn't even get used for eraser so doesn't matter
             pixel_buffer_width: self.buffer_width,
             pixel_buffer_height: self.buffer_height,

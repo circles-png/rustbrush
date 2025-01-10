@@ -61,7 +61,8 @@ impl PaintOperation<'_> {
                     let alpha = pixel.color[3] as f32 / 255.0;
                     if self.is_eraser {
                         let current_alpha = self.pixel_buffer[index + 3] as f32 / 255.0;
-                        self.pixel_buffer[index + 3] = ((current_alpha * (1.0 - alpha)) * 255.0) as u8;
+                        let erase_strength = alpha * self.brush.opacity();
+                        self.pixel_buffer[index + 3] = ((current_alpha * (1.0 - erase_strength)) * 255.0) as u8;
                     } else {
                         for c in 0..4 {
                             let current = self.pixel_buffer[index + c] as f32 / 255.0;
